@@ -1,148 +1,143 @@
-# Enhanced Bulk GCS File Decompressor
+Apache Beam pipeline that bulk-decompresses files in Google Cloud Storage. matches files by glob pattern, detects compression from the extension, decompresses to a target bucket, and logs failures to a CSV. skips files that already exist at the destination. ships in both Java and Python.
 
-## Overview
-
-This project is an enhanced version of Google's Bulk Decompress Cloud Storage Files Dataflow template. It builds upon the original template, adding new features while maintaining the core functionality provided by Google.
-
-## Key Enhancements
-
-- **Flexible Output Structure**: Unlike the original template which outputs to a single directory, this version preserves the original directory structure of the input files.
-- **Resumability**: Implements a check for existing decompressed files, allowing jobs to be resumed without redundant processing.
-- **Efficient Processing**: Skips already decompressed files, saving time and resources on subsequent runs.
-
-## Original Features (Maintained from Google's Template)
-
-- Decompresses files from Google Cloud Storage (GCS)
-- Supports multiple compression formats: BZIP2, DEFLATE, GZIP
-- Provides error logging for failed decompression attempts
-
-## Prerequisites
-
-- Google Cloud Platform account
-- Google Cloud SDK installed and configured
-- Java Development Kit (JDK) 11 or later
-- Apache Maven
-
-## Setup
-
-1. Clone this repository:
-   ```
-   git clone https://github.com/your-username/enhanced-bulk-gcs-decompressor.git
-   cd enhanced-bulk-gcs-decompressor
-   ```
-
-2. Set up your Google Cloud project:
-   ```
-   export PROJECT_ID=your-project-id
-   export REGION=your-preferred-region
-   gcloud config set project $PROJECT_ID
-   ```
-
-3. Create a staging bucket (if not already existing):
-   ```
-   export STAGING_BUCKET=gs://$PROJECT_ID-dataflow-staging
-   gsutil mb -p $PROJECT_ID -l $REGION $STAGING_BUCKET
-   ```
-
-## Building the Template
-
-Build the enhanced Dataflow template using Maven:
-
-```
-mvn clean package -DskipTests -Dexec.mainClass=com.google.cloud.teleport.templates.BulkDecompressor -Dexec.args="--runner=DataflowRunner --project=$PROJECT_ID --stagingLocation=$STAGING_BUCKET/staging --templateLocation=$STAGING_BUCKET/templates/BulkDecompressor --region=$REGION"
+```bash
+python EnhancedBulkCompressor.py \
+  --input_file_pattern=gs://my-bucket/*.gz \
+  --output_bucket=gs://my-output-bucket \
+  --output_failure_file=gs://my-bucket/failed.csv
 ```
 
-## Input File Patterns & Output Structure
+[![python](https://img.shields.io/badge/python-3.8+-93450a.svg?style=flat-square)](https://www.python.org/)
+[![java](https://img.shields.io/badge/java-beam_sdk-93450a.svg?style=flat-square)](https://beam.apache.org/)
+[![license](https://img.shields.io/badge/license-MIT-grey.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-This enhanced template supports flexible input file patterns, allowing you to target specific files or directories for decompression. Here are some examples:
+---
 
-1. Decompress all .gz files in a specific directory:
-   ```
-   inputFilePattern=gs://your-input-bucket/path/to/files/*.gz
-   ```
+## what it does
 
-2. Decompress files with a specific prefix:
-   ```
-   inputFilePattern=gs://your-input-bucket/path/to/files/data_*.gz
-   ```
+- **glob matching** — point it at `gs://bucket/path/*.gz` and it finds everything
+- **auto-detection** — figures out compression type from the file extension (GZIP, BZIP2, DEFLATE, ZIP)
+- **idempotent** — checks if the output file already exists before decompressing, safe to re-run
+- **dead-letter output** — uncompressed files, malformed archives, and I/O errors go to a CSV error log instead of crashing the pipeline
+- **parallel decompression** (Python) — uses a thread pool sized to CPU count, processes files in configurable batches
+- **strips extension** — `data.json.gz` becomes `data.json` at the destination
 
-3. Decompress files in a date-based directory structure:
-   ```
-   inputFilePattern=gs://your-input-bucket/YYYY/MM/DD/*.gz
-   ```
-   This pattern will match files like `gs://your-input-bucket/2023/05/15/data.gz`.
+## supported compressions
 
-4. Decompress files across multiple subdirectories:
-   ```
-   inputFilePattern=gs://your-input-bucket/**/*.gz
-   ```
-   This pattern will recursively match all .gz files in any subdirectory.
+| type | Java | Python |
+|:---|:---|:---|
+| GZIP | yes | yes |
+| BZIP2 | yes | yes |
+| DEFLATE | yes | yes |
+| ZIP | yes | — |
 
-5. Decompress specific file types across a date range:
-   ```
-   inputFilePattern=gs://your-input-bucket/2023/0[1-6]/*/data.json.gz
-   ```
-   This pattern will match `data.json.gz` files in any day of the first six months of 2023.
+detection is automatic via file extension. unrecognized extensions get routed to the error output.
 
-6. Decompress files with multiple extensions:
-   ```
-   inputFilePattern=gs://your-input-bucket/path/to/files/*.{gz,bz2}
-   ```
-   This pattern will match both .gz and .bz2 files.
+## two implementations
 
-Remember to enclose your pattern in quotes if it contains special characters when running the job:
+### Java
 
-```
-gcloud dataflow jobs run bulk-decompress-job \
-  --gcs-location=$STAGING_BUCKET/templates/BulkDecompressor \
-  --region=$REGION \
-  --parameters \
-inputFilePattern="gs://your-input-bucket/2023/0[1-6]/*/data.json.gz",\
-outputBucket=gs://your-output-bucket,\
-outputFailureFile=gs://your-output-bucket/failures.csv
+designed as a Google Cloud Dataflow template (`Bulk_Decompress_GCS_Files`). uses `ValueProvider` for runtime parameter binding, Guava for byte copying, Apache Commons CSV for error output formatting.
+
+```bash
+java -cp <classpath> com.google.cloud.teleport.templates.BulkDecompressor \
+  --inputFilePattern=gs://bucket/*.gz \
+  --outputBucket=gs://output-bucket \
+  --outputFailureFile=gs://bucket/failed.csv
 ```
 
-## Running the Job
+### Python
 
-Execute the Dataflow job using the following command:
+standalone script. runs on Dataflow by default. uses `GcsIO` for streaming reads/writes and a `ThreadPoolExecutor` for parallel decompression within each worker.
 
-```
-gcloud dataflow jobs run bulk-decompress-job \
-  --gcs-location=$STAGING_BUCKET/templates/BulkDecompressor \
-  --region=$REGION \
-  --parameters \
-inputFilePattern=gs://your-input-bucket/path/to/files/*/*/*/*.gz,\
-outputBucket=gs://your-output-bucket,\
-outputFailureFile=gs://your-output-bucket/failures.csv
+```bash
+python EnhancedBulkCompressor.py \
+  --input_file_pattern=gs://bucket/*.gz \
+  --output_bucket=gs://output-bucket \
+  --output_failure_file=gs://bucket/failed.csv \
+  --batch_size=100
 ```
 
-Replace `your-input-bucket` and `your-output-bucket` with your actual GCS bucket names. Note that the input file pattern can now include multiple directory levels.
+## configuration
 
-## Monitoring
+### Java
 
-Monitor your Dataflow job using:
+| flag | required | description |
+|:---|:---|:---|
+| `--inputFilePattern` | yes | GCS glob pattern for input files |
+| `--outputBucket` | yes | GCS bucket for decompressed output |
+| `--outputFailureFile` | yes | GCS path for CSV error log |
+
+plus standard Beam/Dataflow flags (`--runner`, `--project`, `--region`, etc.).
+
+### Python
+
+| flag | required | default | description |
+|:---|:---|:---|:---|
+| `--input_file_pattern` | yes | — | GCS glob pattern for input files |
+| `--output_bucket` | yes | — | GCS bucket for decompressed output |
+| `--output_failure_file` | yes | — | GCS path for CSV error log |
+| `--batch_size` | no | `100` | files per batch |
+
+plus standard Beam/Dataflow flags.
+
+## output
+
+decompressed files land in the output bucket with the same path structure, minus the compression extension.
+
+failures go to a CSV:
+
+```csv
+Filename,Error
+gs://bucket/bad-file.gz,"BZip2 format error: ..."
+gs://bucket/not-compressed.txt,"file is not compressed"
+```
+
+## error handling
+
+three cases are caught and routed to the dead-letter CSV instead of failing the pipeline:
+
+- **uncompressed file** — no recognized compression extension
+- **malformed archive** — BZip2 format errors, incorrect zlib headers
+- **I/O errors** — general read/write failures
+
+no explicit retry logic beyond Beam's built-in bundle retry on worker failure.
+
+## dependencies
+
+### Java
+
+inferred from imports (no `pom.xml` in this repo — designed to live inside the [DataflowTemplates](https://github.com/GoogleCloudPlatform/DataflowTemplates) project):
+
+- `org.apache.beam:beam-sdks-java-core`
+- `com.google.guava:guava`
+- `org.apache.commons:commons-csv`
+- `org.slf4j:slf4j-api`
+
+### Python
 
 ```
-gcloud dataflow jobs list --region=$REGION
+apache-beam[gcp]
+google-cloud-storage
 ```
 
-Or visit the Google Cloud Console for a visual representation of the job's progress.
+## project structure
 
-## Output
+```
+EnhancedBulkCompressor.java   — Java implementation (Dataflow template)
+EnhancedBulkCompressor.py     — Python implementation (standalone)
+```
 
-Decompressed files will be written to the specified output bucket, maintaining the original directory structure. For example, an input file at `gs://input-bucket/2023/05/01/data.json.gz` will be decompressed to `gs://output-bucket/2023/05/01/data.json`. Any decompression failures will be logged in the specified failure file.
+Java key classes:
+- `BulkDecompressor` — pipeline entry point and orchestration
+- `BulkDecompressor.Decompress` — `DoFn` that handles per-file decompression logic
+- `BulkDecompressor.Options` — pipeline options interface
 
-## Contributing
+Python key classes:
+- `BulkDecompressorOptions` — CLI args and validation
+- `Decompress` — `DoFn` with thread pool, handles decompression and GCS I/O
+- `BatchElements` — `DoFn` that groups file metadata into batches
 
-While contributions to improve the template are welcome, please be mindful that this is an enhanced version of Google's original work. Significant changes should be considered carefully to maintain compatibility and the spirit of the original template.
+## license
 
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details. The original template is the work of Google LLC and is subject to their licensing terms.
-
-## Acknowledgments
-
-This project is based on the Bulk Decompress Cloud Storage Files template created by Google. We express our gratitude to the original authors for their valuable work, which served as the foundation for these enhancements.
-
-For the original template and other Google-provided Dataflow templates, please visit:
-[Google Cloud Dataflow Templates](https://github.com/GoogleCloudPlatform/DataflowTemplates)
+MIT
