@@ -4,7 +4,7 @@ package com.google.cloud.teleport.templates;
 import com.google.cloud.teleport.metadata.Template;
 import com.google.cloud.teleport.metadata.TemplateCategory;
 import com.google.cloud.teleport.metadata.TemplateParameter;
-import com.google.cloud.teleport.templates.BulkDecompressor.Options;
+import com.google.cloud.teleport.templates.CliDataflowDecompress.Options;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
@@ -48,14 +48,14 @@ import org.slf4j.LoggerFactory;
 
 // Define the template metadata
 @Template(
-    name = "Bulk_Decompress_GCS_Files",
+    name = "CLI_Dataflow_Decompress",
     category = TemplateCategory.UTILITIES,
-    displayName = "Bulk Decompress Files on Cloud Storage",
+    displayName = "CLI Dataflow Decompress Files on Cloud Storage",
     description = {
-      "The Bulk Decompress Cloud Storage Files template is a batch pipeline that decompresses files on Cloud Storage to a specified location. "
+      "The CLI Dataflow Decompress Cloud Storage Files template is a batch pipeline that decompresses files on Cloud Storage to a specified location. "
           + "This functionality is useful when you want to use compressed data to minimize network bandwidth costs during a migration, but would like to maximize analytical processing speed by operating on uncompressed data after migration. "
           + "The pipeline automatically handles multiple compression modes during a single run and determines the decompression mode to use based on the file extension (.bzip2, .deflate, .gz, .zip).",
-      "Note: The Bulk Decompress Cloud Storage Files template is intended for single compressed files and not compressed folders."
+      "Note: The CLI Dataflow Decompress Cloud Storage Files template is intended for single compressed files and not compressed folders."
     },
     optionsClass = Options.class,
     documentation =
@@ -65,10 +65,10 @@ import org.slf4j.LoggerFactory;
       "The files to decompress must be in one of the following formats: Bzip2, Deflate, and Gzip.",
       "The output bucket must exist prior to running the pipeline."
     })
-public class BulkDecompressor {
+public class CliDataflowDecompress {
 
   // Logger for this class
-  private static final Logger LOG = LoggerFactory.getLogger(BulkDecompressor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CliDataflowDecompress.class);
 
   // Define supported compression types
   @VisibleForTesting

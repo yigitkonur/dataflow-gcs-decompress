@@ -1,12 +1,12 @@
 """
-Bulk Decompress Files on Cloud Storage
+cli-dataflow-decompress: Bulk Decompress Files on Cloud Storage
 
-This template is a batch pipeline that decompresses files on Cloud Storage to a specified location.
+This is a batch pipeline that decompresses files on Cloud Storage to a specified location.
 It automatically handles multiple compression modes during a single run and determines the
 decompression mode to use based on the file extension (.bzip2, .deflate, .gz).
 
 Template Metadata:
-    Name: Bulk_Decompress_GCS_Files
+    Name: CLI_Dataflow_Decompress
     Category: UTILITIES
     Description: Decompresses files from Cloud Storage to a specified location.
     Documentation: https://cloud.google.com/dataflow/docs/guides/templates/provided/bulk-decompress-cloud-storage
@@ -37,7 +37,7 @@ SUPPORTED_COMPRESSIONS = {CompressionTypes.BZIP2, CompressionTypes.GZIP, Compres
 UNCOMPRESSED_ERROR_MSG = "Skipping file %s because it did not match any compression mode (%s)"
 MALFORMED_ERROR_MSG = "The file resource %s is malformed or not in %s compressed format."
 
-class BulkDecompressorOptions(PipelineOptions):
+class CliDataflowDecompressOptions(PipelineOptions):
     @classmethod
     def _add_argparse_args(cls, parser):
         parser.add_value_provider_argument(
@@ -156,15 +156,15 @@ class BatchElements(beam.DoFn):
             yield batch
 
 def run(argv=None):
-    pipeline_options = BulkDecompressorOptions(argv)
+    pipeline_options = CliDataflowDecompressOptions(argv)
     pipeline_options.view_as(beam.options.StandardOptions).runner = 'DataflowRunner'
 
     # Validate options
     pipeline_options.validate(beam.options.pipeline_options.PipelineOptionsValidator())
 
-    logger.info("Starting Bulk Decompressor pipeline")
+    logger.info("Starting cli-dataflow-decompress pipeline")
     with beam.Pipeline(options=pipeline_options) as p:
-        matched_files = (p 
+        matched_files = (p
             | 'MatchFiles' >> beam.io.fileio.MatchFiles(pipeline_options.input_file_pattern)
             | 'BatchFiles' >> beam.ParDo(BatchElements(pipeline_options.batch_size)))
 
@@ -184,7 +184,7 @@ def run(argv=None):
                 header='Filename,Error',
                 shard_name_template=''))
 
-    logger.info("Bulk Decompressor pipeline completed")
+    logger.info("cli-dataflow-decompress pipeline completed")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

@@ -1,7 +1,7 @@
 Apache Beam pipeline that bulk-decompresses files in Google Cloud Storage. matches files by glob pattern, detects compression from the extension, decompresses to a target bucket, and logs failures to a CSV. skips files that already exist at the destination. ships in both Java and Python.
 
 ```bash
-python EnhancedBulkCompressor.py \
+python cli_dataflow_decompress.py \
   --input_file_pattern=gs://my-bucket/*.gz \
   --output_bucket=gs://my-output-bucket \
   --output_failure_file=gs://my-bucket/failed.csv
@@ -37,10 +37,10 @@ detection is automatic via file extension. unrecognized extensions get routed to
 
 ### Java
 
-designed as a Google Cloud Dataflow template (`Bulk_Decompress_GCS_Files`). uses `ValueProvider` for runtime parameter binding, Guava for byte copying, Apache Commons CSV for error output formatting.
+designed as a Google Cloud Dataflow template (`CLI_Dataflow_Decompress`). uses `ValueProvider` for runtime parameter binding, Guava for byte copying, Apache Commons CSV for error output formatting.
 
 ```bash
-java -cp <classpath> com.google.cloud.teleport.templates.BulkDecompressor \
+java -cp <classpath> com.google.cloud.teleport.templates.CliDataflowDecompress \
   --inputFilePattern=gs://bucket/*.gz \
   --outputBucket=gs://output-bucket \
   --outputFailureFile=gs://bucket/failed.csv
@@ -51,7 +51,7 @@ java -cp <classpath> com.google.cloud.teleport.templates.BulkDecompressor \
 standalone script. runs on Dataflow by default. uses `GcsIO` for streaming reads/writes and a `ThreadPoolExecutor` for parallel decompression within each worker.
 
 ```bash
-python EnhancedBulkCompressor.py \
+python cli_dataflow_decompress.py \
   --input_file_pattern=gs://bucket/*.gz \
   --output_bucket=gs://output-bucket \
   --output_failure_file=gs://bucket/failed.csv \
@@ -124,17 +124,17 @@ google-cloud-storage
 ## project structure
 
 ```
-EnhancedBulkCompressor.java   — Java implementation (Dataflow template)
-EnhancedBulkCompressor.py     — Python implementation (standalone)
+CliDataflowDecompress.java    — Java implementation (Dataflow template)
+cli_dataflow_decompress.py    — Python implementation (standalone)
 ```
 
 Java key classes:
-- `BulkDecompressor` — pipeline entry point and orchestration
-- `BulkDecompressor.Decompress` — `DoFn` that handles per-file decompression logic
-- `BulkDecompressor.Options` — pipeline options interface
+- `CliDataflowDecompress` — pipeline entry point and orchestration
+- `CliDataflowDecompress.Decompress` — `DoFn` that handles per-file decompression logic
+- `CliDataflowDecompress.Options` — pipeline options interface
 
 Python key classes:
-- `BulkDecompressorOptions` — CLI args and validation
+- `CliDataflowDecompressOptions` — CLI args and validation
 - `Decompress` — `DoFn` with thread pool, handles decompression and GCS I/O
 - `BatchElements` — `DoFn` that groups file metadata into batches
 
